@@ -565,4 +565,28 @@ def edit_post(post_id):
     return render_template("editor.html", p=dict(row), cats=categories(), is_new=False)
 
 
-@app.post("/admin/post/<in
+@app.post("/admin/post/<int:post_id>/delete")
+@login_required
+def delete_post(post_id):
+    db = get_db()
+    row = db.execute("SELECT cover FROM posts WHERE id=?", (post_id,)).fetchone()
+    if row:
+        delete_cover(row["cover"])
+        db.execute("DELETE FROM posts WHERE id=?", (post_id,))
+        db.execute("DELETE FROM visits WHERE post_id=?", (post_id,))
+        db.commit()
+        flash("Post o'chirildi.", "ok")
+    return redirect(url_for("admin"))
+
+
+@app.post("/admin/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("index"))
+
+
+init_db()
+
+if __name__ == "__main__":
+    # Faqat sinash uchun. Real hostda: gunicorn wsgi:app
+    app.run(debug=False, host="127.0.0.1", port=5000)
