@@ -3,6 +3,7 @@ import os
 import re
 import secrets
 import sqlite3
+import sys
 import time
 import unicodedata
 from datetime import date, datetime, timedelta
@@ -17,8 +18,26 @@ from werkzeug.security import check_password_hash, generate_password_hash
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 # Ma'lumotlar (blog.db, uploads/, .secret_key) saqlanadigan papka. Hostda doimiy diskni ko'rsating.
 DATA_DIR = os.environ.get("DATA_DIR", BASE_DIR)
+
+
+def _writable_dir(path):
+    os.makedirs(path, exist_ok=True)
+    if not os.access(path, os.W_OK):
+        raise PermissionError(path)
+    return path
+
+
+try:
+    _writable_dir(os.path.join(DATA_DIR, "uploads"))
+except OSError:
+    # Masalan Render'da /var/lib/blog ga yozib bo'lmaydi. Yiqilish o'rniga ilova papkasiga o'tamiz.
+    _fallback = os.path.join(BASE_DIR, "data")
+    print(f"OGOHLANTIRISH: DATA_DIR={DATA_DIR} ga yozib bo'lmaydi, {_fallback} ishlatiladi. "
+          "Doimiy disk ulanmagan bo'lsa, ma'lumotlar har deployda o'chib ketadi.",
+          file=sys.stderr, flush=True)
+    DATA_DIR = _fallback
+    _writable_dir(os.path.join(DATA_DIR, "uploads"))
 UPLOAD_DIR = os.path.join(DATA_DIR, "uploads")
-os.makedirs(UPLOAD_DIR, exist_ok=True)
 DB_PATH = os.path.join(DATA_DIR, "blog.db")
 # DEV=1 faqat kompyuteringizda sinash uchun (standart parol va http cookie)
 DEV = os.environ.get("DEV", "0") == "1"
@@ -546,28 +565,4 @@ def edit_post(post_id):
     return render_template("editor.html", p=dict(row), cats=categories(), is_new=False)
 
 
-@app.post("/admin/post/<int:post_id>/delete")
-@login_required
-def delete_post(post_id):
-    db = get_db()
-    row = db.execute("SELECT cover FROM posts WHERE id=?", (post_id,)).fetchone()
-    if row:
-        delete_cover(row["cover"])
-        db.execute("DELETE FROM posts WHERE id=?", (post_id,))
-        db.execute("DELETE FROM visits WHERE post_id=?", (post_id,))
-        db.commit()
-        flash("Post o'chirildi.", "ok")
-    return redirect(url_for("admin"))
-
-
-@app.post("/admin/logout")
-def logout():
-    session.clear()
-    return redirect(url_for("index"))
-
-
-init_db()
-
-if __name__ == "__main__":
-    # Faqat sinash uchun. Real hostda: gunicorn wsgi:app
-    app.run(debug=False, host="127.0.0.1", port=5000)
+@app.post("/admin/post/<in
