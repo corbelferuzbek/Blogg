@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% from "_macros.html" import card, cover %}
+{% block title %}{% if q %}“{{ q }}” · {% elif cat %}{{ cat }} · {% endif %}{{ site.name }}{% endblock %}
+{% block content %}
+<div class="wrap">
+  {% if q or cat %}
+  <div class="page-title">
+    <span class="kicker">{{ 'Qidiruv' if q else 'Kategoriya' }}</span>
+    <h1>{{ q if q else cat }}</h1>
+    <p>{{ total }} ta yozuv topildi</p>
+  </div>
+  {% endif %}
+
+  {% if featured %}
+  <a class="hero" href="{{ featured.url }}">
+    <div class="hero-img">{{ cover(featured, eager=True) }}</div>
+    <div class="hero-txt">
+      <span class="kicker">{{ featured.category }}</span>
+      <h1>{{ featured.title }}</h1>
+      <p>{{ featured.excerpt }}</p>
+      <span class="meta">{{ featured.created_at|kun }} &middot; {{ featured.minutes }} daqiqa o'qish</span>
+    </div>
+  </a>
+  {% endif %}
+
+  {% if grid %}
+  <section class="grid">
+    {% for p in grid %}{{ card(p) }}{% endfor %}
+  </section>
+  {% elif not featured %}
+  <p class="empty">{{ 'Hech narsa topilmadi.' if (q or cat) else 'Hozircha yozuv yo\'q.' }}</p>
+  {% endif %}
+
+  {% if page > 1 or has_next %}
+  <nav class="pager">
+    {% if page > 1 %}<a class="btn ghost" href="{{ url_for('index', q=q or None, c=cat or None, page=page - 1) }}">&larr; Yangiroq</a>{% else %}<span></span>{% endif %}
+    <span class="meta">{{ page }}-sahifa</span>
+    {% if has_next %}<a class="btn ghost" href="{{ url_for('index', q=q or None, c=cat or None, page=page + 1) }}">Eskiroq &rarr;</a>{% else %}<span></span>{% endif %}
+  </nav>
+  {% endif %}
+</div>
+{% endblock %}

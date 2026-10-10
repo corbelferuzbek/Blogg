@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Topilmadi · {{ site.name }}{% endblock %}
+{% block content %}
+<div class="wrap notfound">
+  <span class="kicker">404</span>
+  <h1>Bu sahifa topilmadi</h1>
+  <p>Havola eskirgan yoki yozuv o'chirilgan bo'lishi mumkin.</p>
+  <a class="btn" href="{{ url_for('index') }}">Bosh sahifaga qaytish</a>
+</div>
+{% endblock %}

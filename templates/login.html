@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Admin kirish · {{ site.name }}{% endblock %}
+{% block content %}
+<div class="wrap">
+  <form class="panel login" method="post" action="{{ url_for('admin') }}">
+    <span class="kicker">Admin</span>
+    <h1>Kirish</h1>
+    <input type="hidden" name="csrf" value="{{ csrf() }}">
+    <label>Login<input name="user" autocomplete="username" required autofocus></label>
+    <label>Parol<input name="password" type="password" autocomplete="current-password" required></label>
+    <button class="btn" type="submit">Kirish</button>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,17 @@
+{% macro cover(p, eager=False) -%}
+  {% if p.cover %}
+    <img src="{{ url_for('media', name=p.cover) }}" alt="" loading="{{ 'eager' if eager else 'lazy' }}" decoding="async">
+  {% else %}
+    <div class="ph g{{ p.id % 6 }}" aria-hidden="true"><span>{{ p.category[:1]|upper }}</span></div>
+  {% endif %}
+{%- endmacro %}
+
+{% macro card(p) -%}
+<a class="card" href="{{ p.url }}">
+  <div class="thumb">{{ cover(p) }}</div>
+  <span class="kicker">{{ p.category }}</span>
+  <h3>{{ p.title }}</h3>
+  <p>{{ p.excerpt }}</p>
+  <span class="meta">{{ p.created_at|kun }} &middot; {{ p.minutes }} daqiqa o'qish</span>
+</a>
+{%- endmacro %}

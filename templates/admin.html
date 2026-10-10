@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Admin panel · {{ site.name }}{% endblock %}
+{% block content %}
+<div class="wrap admin">
+  <div class="admin-head">
+    <div>
+      <span class="kicker">Admin panel</span>
+      <h1>Umumiy ko'rinish</h1>
+    </div>
+    <div class="actions">
+      <a class="btn" href="{{ url_for('new_post') }}">+ Yangi post</a>
+      <form method="post" action="{{ url_for('logout') }}">
+        <input type="hidden" name="csrf" value="{{ csrf() }}">
+        <button class="btn ghost" type="submit">Chiqish</button>
+      </form>
+    </div>
+  </div>
+
+  <section class="stats">
+    {% for s in stats %}
+    <article class="panel stat">
+      <div class="stat-top"><h3>{{ s.title }}</h3><span>{{ s.sub }}</span></div>
+      <div class="big">{{ s.views|num }}</div>
+      <div class="sub">ko'rish &middot; <b>{{ s.uniq|num }}</b> noyob tashrif</div>
+      {% if s.delta is not none %}
+        <div class="delta {{ 'up' if s.delta >= 0 else 'down' }}">{{ '▲' if s.delta >= 0 else '▼' }} {{ s.delta|abs }}% <span>({{ s.prev }}ga nisbatan)</span></div>
+      {% else %}
+        <div class="delta"><span>{{ s.prev }}da ma'lumot yo'q</span></div>
+      {% endif %}
+    </article>
+    {% endfor %}
+  </section>
+
+  <div class="two">
+    <section class="panel">
+      <div class="stat-top"><h3>So'nggi 14 kun</h3>
+        <div class="legend"><span class="v">Ko'rishlar</span><span class="u">Noyob</span></div>
+      </div>
+      <div class="bars">
+        {% for x in series %}
+        <div class="col" title="{{ x.label }}: {{ x.views }} ko'rish, {{ x.uniq }} noyob">
+          <div class="pair">
+            <i class="b v" style="height:{{ x.vh }}%"></i>
+            <i class="b u" style="height:{{ x.uh }}%"></i>
+          </div>
+          <small>{{ x.label[:2] }}</small>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="stat-top"><h3>Eng ko'p o'qilgan</h3><span>30 kun</span></div>
+      {% for t in top %}
+      <a class="toprow" href="{{ url_for('post', post_id=t.id) }}">
+        <span class="rank">{{ loop.index }}</span>
+        <span class="tt">{{ t.title }}</span>
+        <b>{{ t.v|num }}</b>
+      </a>
+      {% else %}
+      <p class="empty">Hali ma'lumot yo'q.</p>
+      {% endfor %}
+      <p class="fine">Jami: {{ total_views|num }} ko'rish. Noyob tashrif: kuniga bir mehmon bir marta sanaladi. Siz (admin) va botlar hisobga kirmaydi.</p>
+    </section>
+  </div>
+
+  <h2 class="sec">Postlar ({{ posts|length }})</h2>
+  <section class="panel list">
+    {% for p in posts %}
+    <div class="item">
+      <div class="info">
+        <a href="{{ url_for('post', post_id=p.id) }}"><b>{{ p.title }}</b></a>
+        <span class="meta">{{ p.category }} &middot; {{ p.created_at|kun }} &middot; {{ p.views|num }} ko'rish</span>
+      </div>
+      <div class="row-actions">
+        <a class="btn ghost sm" href="{{ url_for('edit_post', post_id=p.id) }}">Tahrirlash</a>
+        <form method="post" action="{{ url_for('delete_post', post_id=p.id) }}" onsubmit="return confirm('Post o\'chirilsinmi?')">
+          <input type="hidden" name="csrf" value="{{ csrf() }}">
+          <button class="btn ghost sm danger" type="submit">O'chirish</button>
+        </form>
+      </div>
+    </div>
+    {% else %}
+    <p class="empty">Hali post yo'q. Birinchisini yozing.</p>
+    {% endfor %}
+  </section>
+</div>
+{% endblock %}

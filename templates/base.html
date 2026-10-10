@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="uz">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ site.name }}{% endblock %}</title>
+  <meta name="description" content="{% block desc %}{{ site.tagline }}{% endblock %}">
+  <meta name="theme-color" content="#ffffff">
+  {% block head %}{% endblock %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=3">
+</head>
+<body>
+  {% if session.get('admin') %}
+  <div class="adminbar">
+    <div class="wrap">
+      <span>Admin sifatida kirgansiz</span>
+      <span class="links">
+        {% block adminbar_extra %}{% endblock %}
+        <a href="{{ url_for('new_post') }}">+ Yangi post</a>
+        <a href="{{ url_for('admin') }}">Panel</a>
+      </span>
+    </div>
+  </div>
+  {% endif %}
+
+  <header class="site-head">
+    <div class="wrap head-row">
+      <a class="logo" href="{{ url_for('index') }}"><span class="mark"></span>{{ site.name }}</a>
+      <input type="checkbox" id="nav-toggle" class="nav-toggle" hidden>
+      <label for="nav-toggle" class="burger" aria-label="Menyu"><i></i></label>
+      <div class="head-panel">
+        <nav class="main-nav">
+          <a href="{{ url_for('index') }}" class="{{ 'on' if request.endpoint == 'index' and not request.args.get('c') and not request.args.get('q') }}">Hammasi</a>
+          {% for c in nav_categories %}
+            <a href="{{ url_for('index', c=c) }}" class="{{ 'on' if request.args.get('c') == c }}">{{ c }}</a>
+          {% endfor %}
+        </nav>
+        <form class="search" action="{{ url_for('index') }}" role="search">
+          <input name="q" type="search" placeholder="Qidirish" value="{{ request.args.get('q', '') }}" aria-label="Qidirish" maxlength="80">
+        </form>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div class="wrap">
+      {% with msgs = get_flashed_messages(with_categories=true) %}
+        {% for cat, m in msgs %}<div class="flash {{ cat }}">{{ m }}</div>{% endfor %}
+      {% endwith %}
+    </div>
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="site-foot">
+    <div class="wrap foot-row">
+      <div>
+        <div class="logo light"><span class="mark"></span>{{ site.name }}</div>
+        <p>{{ site.tagline }}</p>
+      </div>
+      <p class="fine">Muallif ko'rsatilmaydi. Tashrif statistikasi anonim: IP manzil va shaxsiy ma'lumot saqlanmaydi.</p>
+    </div>
+  </footer>
+</body>
+</html>

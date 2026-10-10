@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Yangi post' if is_new else 'Postni tahrirlash' }} · {{ site.name }}{% endblock %}
+{% block content %}
+<div class="wrap admin">
+  <div class="admin-head">
+    <div>
+      <span class="kicker">{{ 'Yangi post' if is_new else 'Tahrirlash' }}</span>
+      <h1>{{ 'Post yozish' if is_new else (p.title or 'Post') }}</h1>
+    </div>
+    <a class="btn ghost" href="{{ url_for('admin') }}">&larr; Panelga</a>
+  </div>
+
+  <form class="editor" method="post" enctype="multipart/form-data"
+        action="{{ url_for('new_post') if is_new else url_for('edit_post', post_id=p.id) }}">
+    <input type="hidden" name="csrf" value="{{ csrf() }}">
+
+    <div class="panel fields">
+      <label>Sarlavha
+        <input name="title" maxlength="200" required value="{{ p.title or '' }}" placeholder="Maqola sarlavhasi">
+      </label>
+      <label>Qisqa tavsif <small>(ixtiyoriy, kartada va ulashishda ko'rinadi)</small>
+        <textarea name="summary" rows="2" maxlength="300">{{ p.summary or '' }}</textarea>
+      </label>
+      <label>Matn
+        <textarea name="body" rows="18" required placeholder="Yozishni boshlang...">{{ p.body or '' }}</textarea>
+      </label>
+      <details class="hint">
+        <summary>Matnni formatlash</summary>
+        <pre>## Katta sarlavha
+### Kichik sarlavha
+
+Oddiy abzats. **qalin**, *kursiv*, [havola](https://example.com)
+
+&gt; Iqtibos yoki muhim fikr
+
+- ro'yxat
+- elementlari</pre>
+      </details>
+    </div>
+
+    <aside class="side">
+      <div class="panel">
+        <label>Kategoriya
+          <input name="category" list="cats" maxlength="40" value="{{ p.category or '' }}" placeholder="Umumiy">
+          <datalist id="cats">{% for c in cats %}<option value="{{ c }}">{% endfor %}</datalist>
+        </label>
+      </div>
+      <div class="panel">
+        <label>Muqova rasmi <small>(JPG, PNG, WEBP, GIF — 6 MB gacha)</small>
+          <input type="file" name="cover" accept="image/jpeg,image/png,image/webp,image/gif">
+        </label>
+        {% if p.cover %}
+        <img class="cover-prev" src="{{ url_for('media', name=p.cover) }}" alt="">
+        <label class="check"><input type="checkbox" name="remove_cover" value="1"> Rasmni olib tashlash</label>
+        {% endif %}
+      </div>
+      <button class="btn block" type="submit">{{ 'Chop etish' if is_new else 'Saqlash' }}</button>
+    </aside>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% from "_macros.html" import card %}
+{% block title %}{{ p.title }} · {{ site.name }}{% endblock %}
+{% block desc %}{{ p.excerpt }}{% endblock %}
+{% block head %}
+  <meta property="og:type" content="article">
+  <meta property="og:title" content="{{ p.title }}">
+  <meta property="og:description" content="{{ p.excerpt }}">
+  {% if p.cover %}<meta property="og:image" content="{{ url_for('media', name=p.cover, _external=True) }}">{% endif %}
+{% endblock %}
+{% block adminbar_extra %}<a href="{{ url_for('edit_post', post_id=p.id) }}">Tahrirlash</a>{% endblock %}
+
+{% block content %}
+<div id="progress"></div>
+<article class="article wrap">
+  <header class="a-head">
+    <a class="kicker" href="{{ url_for('index', c=p.category) }}">{{ p.category }}</a>
+    <h1>{{ p.title }}</h1>
+    {% if p.summary %}<p class="lead">{{ p.summary }}</p>{% endif %}
+    <div class="meta">{{ p.created_at|kun }} &middot; {{ p.minutes }} daqiqa o'qish</div>
+  </header>
+
+  {% if p.cover %}
+  <figure class="a-cover"><img src="{{ url_for('media', name=p.cover) }}" alt=""></figure>
+  {% endif %}
+
+  <div class="prose">{{ p.body|rich }}</div>
+
+  <div class="a-foot">
+    <button type="button" id="copy" class="btn ghost">Havolani nusxalash</button>
+    <a class="btn ghost" href="{{ url_for('index') }}">&larr; Barcha yozuvlar</a>
+  </div>
+</article>
+
+{% if related %}
+<section class="related">
+  <div class="wrap">
+    <h2 class="sec">Yana o'qing</h2>
+    <div class="grid">{% for r in related %}{{ card(r) }}{% endfor %}</div>
+  </div>
+</section>
+{% endif %}
+
+<script>
+  (function () {
+    var bar = document.getElementById('progress');
+    function upd() {
+      var h = document.documentElement;
+      var max = h.scrollHeight - h.clientHeight;
+      bar.style.width = (max > 0 ? Math.min(100, h.scrollTop / max * 100) : 0) + '%';
+    }
+    addEventListener('scroll', upd, { passive: true }); upd();
+    var btn = document.getElementById('copy');
+    btn.addEventListener('click', function () {
+      var done = function () { btn.textContent = 'Nusxalandi ✓'; setTimeout(function () { btn.textContent = 'Havolani nusxalash'; }, 1800); };
+      if (navigator.clipboard) { navigator.clipboard.writeText(location.href).then(done); }
+      else { var t = document.createElement('input'); t.value = location.href; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove(); done(); }
+    });
+  })();
+</script>
+{% endblock %}
