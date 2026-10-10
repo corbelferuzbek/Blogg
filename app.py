@@ -1,4 +1,5 @@
 import hashlib
+import mimetypes
 import os
 import re
 import secrets
@@ -10,7 +11,7 @@ from datetime import date, datetime, timedelta
 from functools import wraps
 
 from flask import (Flask, Response, abort, flash, g, redirect, render_template,
-                   request, send_from_directory, session, url_for)
+                   request, send_file, send_from_directory, session, url_for)
 from markupsafe import Markup, escape
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -29,6 +30,7 @@ def _writable_dir(path):
 
 try:
     _writable_dir(os.path.join(DATA_DIR, "uploads"))
+    _writable_dir(os.path.join(DATA_DIR, "files"))
 except OSError:
     # Masalan Render'da /var/lib/blog ga yozib bo'lmaydi. Yiqilish o'rniga ilova papkasiga o'tamiz.
     _fallback = os.path.join(BASE_DIR, "data")
@@ -37,7 +39,11 @@ except OSError:
           file=sys.stderr, flush=True)
     DATA_DIR = _fallback
     _writable_dir(os.path.join(DATA_DIR, "uploads"))
-UPLOAD_DIR = os.path.join(DATA_DIR, "uploads")
+    _writable_dir(os.path.join(DATA_DIR, "files"))
+UPLOAD_DIR = os.path.join(DATA_DIR, "uploads")   # post muqova rasmlari
+FILES_DIR = os.path.join(DATA_DIR, "files")      # fayl menejeri (tasodifiy nom bilan)
+MAX_UPLOAD_MB = int(os.environ.get("MAX_UPLOAD_MB", "25"))
+COVER_MAX_BYTES = 6 * 1024 * 1024
 DB_PATH = os.path.join(DATA_DIR, "blog.db")
 # DEV=1 faqat kompyuteringizda sinash uchun (standart parol va http cookie)
 DEV = os.environ.get("DEV", "0") == "1"
@@ -86,7 +92,7 @@ app.config.update(
     # HTTPS bo'lmasa COOKIE_SECURE=0 qo'ying (aks holda login ishlamaydi)
     SESSION_COOKIE_SECURE=(os.environ.get("COOKIE_SECURE", "1") == "1" and not DEV),
     PERMANENT_SESSION_LIFETIME=timedelta(hours=12),
-    MAX_CONTENT_LENGTH=6 * 1024 * 1024,  # rasm yuklash uchun 6 MB
+    MAX_CONTENT_LENGTH=MAX_UPLOAD_MB * 1024 * 1024 + 65536,  # bitta so'rovdagi jami hajm
 )
 
 ADMIN_USER = os.environ.get("ADMIN_USER", "admin")
@@ -130,6 +136,25 @@ def init_db():
             );
             CREATE INDEX IF NOT EXISTS idx_visits_day ON visits(day);
             CREATE INDEX IF NOT EXISTS idx_visits_post ON visits(post_id);
+            CREATE TABLE IF NOT EXISTS folders (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                parent_id INTEGER,
+                name TEXT NOT NULL,
+                public INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS files (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                folder_id INTEGER,
+                name TEXT NOT NULL,
+                stored TEXT NOT NULL,
+                size INTEGER NOT NULL DEFAULT 0,
+                public INTEGER NOT NULL DEFAULT 1,
+                downloads INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_files_folder ON files(folder_id);
+            CREATE INDEX IF NOT EXISTS idx_folders_parent ON folders(parent_id);
             """
         )
         # Eski versiyadan ko'chirish (ustunlar yo'q bo'lsa qo'shiladi)
@@ -193,7 +218,7 @@ def track_visit(resp):
     """IP va brauzer ma'lumoti faqat bir kunlik bir tomonlama hash sifatida saqlanadi."""
     try:
         if (request.method == "GET" and resp.status_code == 200
-                and request.endpoint in ("index", "post") and not session.get("admin")):
+                and request.endpoint in ("index", "post", "files_public") and not session.get("admin")):
             ua = request.headers.get("User-Agent", "")
             if ua and not BOT_RE.search(ua):
                 today = date.today().isoformat()
@@ -272,6 +297,25 @@ def num(value):
         return "0"
 
 
+@app.template_filter("fsize")
+def fsize(n):
+    n = float(n or 0)
+    for unit in ("B", "KB", "MB", "GB"):
+        if n < 1024 or unit == "GB":
+            return f"{int(n)} {unit}" if unit == "B" else f"{n:.1f} {unit}"
+        n /= 1024
+
+
+@app.template_filter("ext")
+def ext(name):
+    return (os.path.splitext(name or "")[1].lstrip(".")[:4].upper()) or "FAYL"
+
+
+@app.template_filter("is_image")
+def is_image(name):
+    return (mimetypes.guess_type(name or "")[0] or "") in IMAGE_TYPES
+
+
 def slugify(s):
     s = s.lower()
     for ch in ("ʻ", "ʼ", "'", "’", "‘", "`"):
@@ -291,9 +335,13 @@ def plain(text, n):
 
 
 _INLINE = (
+    # rasm: faqat fayl menejeridagi fayllar (/f/ID)
+    (re.compile(r"!\[([^\]]*)\]\((/f/\d+)(?:/[^\s)]*)?\)"),
+     r'<img src="\2" alt="\1" loading="lazy">'),
     (re.compile(r"\*\*(.+?)\*\*"), r"<strong>\1</strong>"),
     (re.compile(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)"), r"<em>\1</em>"),
-    (re.compile(r"\[([^\]]+)\]\((https?://[^\s)]+)\)"),
+    # havola: https://... yoki fayl menejeridagi fayl (/f/ID)
+    (re.compile(r"\[([^\]]+)\]\(((?:https?://|/f/)[^\s)]+)\)"),
      r'<a href="\2" rel="noopener nofollow" target="_blank">\1</a>'),
 )
 
@@ -344,14 +392,19 @@ def decorate(row):
 
 @app.context_processor
 def inject_site():
-    cats = []
+    cats, has_files = [], False
     try:
-        cats = [r[0] for r in get_db().execute(
+        db = get_db()
+        cats = [r[0] for r in db.execute(
             "SELECT category FROM posts GROUP BY category "
             "ORDER BY COUNT(*) DESC, category LIMIT 5")]
+        has_files = bool(db.execute(
+            "SELECT 1 FROM files WHERE public = 1 AND (folder_id IS NULL OR folder_id IN "
+            "(SELECT id FROM folders WHERE public = 1)) LIMIT 1").fetchone())
     except sqlite3.Error:
         pass
-    return {"site": {"name": SITE_NAME, "tagline": SITE_TAGLINE}, "nav_categories": cats}
+    return {"site": {"name": SITE_NAME, "tagline": SITE_TAGLINE},
+            "nav_categories": cats, "has_files": has_files}
 
 
 # ---------- Rasm yuklash ----------
@@ -370,6 +423,11 @@ def _sniff(head):
 def save_cover(file):
     if not file or not file.filename:
         return None
+    file.stream.seek(0, os.SEEK_END)
+    size = file.stream.tell()
+    file.stream.seek(0)
+    if size > COVER_MAX_BYTES:
+        raise ValueError("Muqova rasmi 6 MB dan oshmasligi kerak.")
     ext = _sniff(file.stream.read(16))  # kengaytma emas, fayl mazmuni tekshiriladi
     file.stream.seek(0)
     if not ext:
@@ -456,7 +514,9 @@ def not_found(_):
 
 @app.errorhandler(413)
 def too_large(_):
-    return "Fayl hajmi 6 MB dan oshmasligi kerak.", 413
+    flash(f"Yuklanayotgan fayllar jami {MAX_UPLOAD_MB} MB dan oshmasligi kerak.", "err")
+    ref = request.referrer or ""
+    return redirect(ref if ref.startswith(request.host_url) else url_for("index"))
 
 
 # ---------- Admin ----------
